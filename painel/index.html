@@ -103,6 +103,7 @@ const MESF=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agost
 const SEM=['domingo','segunda','terça','quarta','quinta','sexta','sábado'];
 const DSEM=['Segunda','Terça','Quarta','Quinta','Sexta'];
 const pct=(a,b)=>b?Math.round(a/b*100):0;
+const cap=t=>t.charAt(0).toUpperCase()+t.slice(1);
 
 // ---------- Dados fictícios (exemplo) ----------
 const HIST={
@@ -149,25 +150,33 @@ function ritmo(m){ // compara o mês em andamento com o mesmo período do mês a
 }
 
 // ---------- Estado ----------
-let tab='resumo',sel=0,dados={agendamentos:[],resumo:{}},vistos=null,busy=false,ultimo=null;
+let tab='resumo',sel=0,dados={agendamentos:[],espera:[],resumo:{}},semana=[],sigAnt='',evento=null,flashNext=false,vistos=null,busy=false,ultimo=null;
 const mesRef=k=>new Date(hoje.getFullYear(),hoje.getMonth()-k,1);
 const chaveMes=d=>d.getFullYear()+'-'+pad(d.getMonth()+1);
 
-function ao_vivo(){return dados.agendamentos||[]}
+function ao_vivo(){return (dados.agendamentos||[]).filter(r=>r.status!=='cancelado')}
+function cancelados(){return (dados.agendamentos||[]).filter(r=>r.status==='cancelado')}
+function normLive(r){return Object.assign({},r,{status:r.status==='cancelado'?'cancelada':'realizada',live:true})}
+function filaEspera(){return dados.espera||[]}
+function semInfo(){ // ocupação da semana a partir dos horários que a página oferece
+  let oc=0,tot=0;const dias=(semana||[]).map(d=>{const t=d.horarios.length,o=d.horarios.filter(h=>!h.livre).length;oc+=o;tot+=t;const f=filaEspera().filter(e=>e.data===d.data&&e.status==='aguardando').length;return {d,t,o,f}});
+  return {oc,tot,p:pct(oc,tot),dias}
+}
 function mdata(k){
   if(k>0){const h=HIST[k];return Object.assign({k,cur:false},h,{recebido:h.pg*VAL,aReceber:(h.re-h.pg)*VAL,perdido:(h.ca+h.fa)*VAL,previsto:h.ag*VAL,pend:h.re-h.pg})}
   const chave=chaveMes(hoje);
   const live=ao_vivo().filter(r=>(r.data||'').startsWith(chave));
+  const liveC=cancelados().filter(r=>(r.data||'').startsWith(chave)).length;
   const P=PASSADAS;
-  const re=P.filter(x=>x.status==='realizada').length,ca=P.filter(x=>x.status==='cancelada').length,fa=P.filter(x=>x.status==='falta').length;
+  const re=P.filter(x=>x.status==='realizada').length,ca=P.filter(x=>x.status==='cancelada').length+liveC,fa=P.filter(x=>x.status==='falta').length;
   const pgF=P.filter(x=>x.pagamento==='pago').length,penF=P.filter(x=>x.pagamento==='pendente').length;
   const lp=live.filter(r=>r.pagamento==='pago').length,ln=live.length-lp;
   const f=Math.max(.15,Math.min(1,P.length/HIST[1].re));
   const org=HIST[1].org.map(o=>[o[0],Math.round(o[1]*f),Math.round(o[2]*f)]);
   const novosLive=new Set(live.map(r=>(r.telefone||r.nome).toLowerCase())).size;
   live.forEach(r=>{const o=org.find(x=>x[0]===origemNorm(r.origem));o[1]++;o[2]++});
-  return {k:0,cur:true,ag:P.length+live.length,re,ca,fa,pg:pgF+lp,novos:Math.round(HIST[1].novos*f)+novosLive,rec:Math.round(HIST[1].rec*f),ret:Math.round(HIST[1].ret*f),sem:HIST[1].sem,inv:Math.round(HIST[1].inv*f),ocup:HIST[1].ocup,org,
-    recebido:(pgF+lp)*VAL,aReceber:(penF+ln)*VAL,perdido:(ca+fa)*VAL,previsto:(P.length+live.length)*VAL,pend:penF+ln,fut:live.length};
+  return {k:0,cur:true,ag:P.length+live.length+liveC,re,ca,fa,pg:pgF+lp,novos:Math.round(HIST[1].novos*f)+novosLive,rec:Math.round(HIST[1].rec*f),ret:Math.round(HIST[1].ret*f),sem:HIST[1].sem,inv:Math.round(HIST[1].inv*f),ocup:HIST[1].ocup,org,
+    recebido:(pgF+lp)*VAL,aReceber:(penF+ln)*VAL,perdido:(ca+fa)*VAL,previsto:(P.length+live.length+liveC)*VAL,pend:penF+ln,fut:live.length};
 }
 
 // ---------- Utilitários de DOM ----------
@@ -175,7 +184,7 @@ async function api(b){const r=await fetch(API,{method:'POST',headers:{'Content-T
 function el(t,c,x){const e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e}
 function dia(iso_){const [y,m,d]=iso_.split('-').map(Number);const w=new Date(Date.UTC(y,m-1,d)).getUTCDay();return `${SEM[w][0].toUpperCase()+SEM[w].slice(1)}, ${d} de ${MES[m-1]}`}
 function badge(r){
-  if(r.status==='cancelada')return el('span','badge b-off','Cancelada');
+  if(r.status==='cancelada'||r.status==='cancelado')return el('span','badge b-off','Cancelada');
   if(r.status==='falta')return el('span','badge b-off','Faltou');
   return el('span','badge '+(r.pagamento==='pago'?'b-ok':'b-pend'),r.pagamento==='pago'?'Pago':'Pendente');
 }
@@ -184,6 +193,17 @@ async function togglePag(r){
   try{await api({acao:'atualizar',id:r.id,pagamento:r.pagamento==='pago'?'pendente':'pago'});await load(true)}catch(e){$('msg').textContent='Falha ao atualizar.'}
   busy=false;
 }
+async function cancelar(r){
+  busy=true;
+  try{
+    const j=await api({acao:'cancelar',id:String(r.id)});
+    const t=`${r.nome} · ${dia(r.data)}, ${r.hora}`;
+    evento={t,s:(j.avisada&&j.avisada.nome)?`Horário liberado. Aviso enviado para ${j.avisada.nome}, primeira da fila de espera.`:'Horário liberado. Ninguém estava na fila de espera.'};
+    flashNext=true;await load(true);
+  }catch(e){$('msg').textContent='Falha ao cancelar.'}
+  busy=false;
+}
+function cancelBtn(r){const b=el('button','btn','Cancelar sessão');b.onclick=()=>cancelar(r);return b}
 function payBtn(r){const b=el('button','btn',r.pagamento==='pago'?'Desfazer':'Marcar como pago');b.onclick=()=>togglePag(r);return b}
 function delta(cur,prev,inverse,suf){
   if(prev==null||!prev)return null;
@@ -204,6 +224,8 @@ function box(titulo,sub){const c=el('div','card box');c.append(el('h3',null,titu
 // ---------- Ações sugeridas ----------
 function acoes(m){
   const a=[];
+  if(m.cur){const f=filaEspera().filter(e=>e.status==='aguardando').length;if(f>0)a.push([`${f} ${f===1?'pessoa está':'pessoas estão'} na lista de espera. Se abrir um horário extra, avise a fila primeiro.`,'Automação: lista de espera']);}
+  if(m.cur){const sw=semInfo();if(sw.tot&&sw.p>=85)a.push([`A semana está ${sw.p}% ocupada. Abra horários extras antes que novos clientes percam a vaga.`,'Automação: aviso de vagas'])}
   if(m.cur){const r=ritmo(m);if(r.nivel==='abaixo')a.push([`O mês está abaixo do ritmo de ${r.pmNome}. Abra mais horários e avise os clientes que não voltaram.`,'Automação: reativação'])}
   const taxa=pct(m.ca+m.fa,m.ag);
   if(m.pend>0)a.push([`${m.pend} pagamento${m.pend>1?'s':''} pendente${m.pend>1?'s':''} (${brl(m.aReceber)}). Envie um lembrete de cobrança gentil.`,'Automação: lembrete de pagamento']);
@@ -253,6 +275,19 @@ function renderResumo(v){
   legenda([['Realizadas',m.re,'var(--okc)',m.re+''],['Canceladas',m.ca,'var(--pendc)',m.ca+''],['Faltas',m.fa,'var(--lostc)',m.fa+'']].concat(m.fut?[['A realizar',m.fut,'var(--grey)',m.fut+'']]:[]),m.ag).forEach(x=>b2.append(x));
   g.append(b1,b2);v.append(g);
 
+  if(m.cur){
+    const sw=semInfo(),fila=filaEspera();
+    const g2=el('div','grid2');
+    const bw=box('Ocupação da semana',sw.tot?`${sw.oc} de ${sw.tot} horários ocupados nos próximos dias úteis`:'Carregando os horários…');
+    if(sw.tot){
+      const bg=el('div','big');bg.append(el('span','bigp',sw.p+'%'),el('span',null,'da agenda preenchida'));bw.append(bg);
+      sw.dias.forEach(x=>{const r=el('div','rw');r.style.gridTemplateColumns='64px 1fr 150px';const t=el('div','trk'),f=el('div');f.style.width=pct(x.o,x.t)+'%';t.append(f);r.append(el('span',null,cap(x.d.semana.slice(0,3))+' '+x.d.dia),t,el('strong',null,x.o===x.t?(x.f?`Lotado · ${x.f} na fila`:'Lotado'):`${x.o} de ${x.t}`));bw.append(r)});
+    }
+    const bl=box('Lista de espera','Na versão real, o aviso de vaga sai pelo WhatsApp.');
+    if(!fila.length){bl.append(el('div','tag','Ninguém na espera. Quando um dia lotar, quem quiser entra na fila pela página.'))}
+    else fila.forEach(e=>{const r=el('div','rw');r.style.gridTemplateColumns='1fr auto';const mid=el('div');mid.append(el('div','nm',e.nome),el('div','mt',`${dia(e.data)} · ${e.telefone||''}`));r.append(mid,el('span','badge '+(e.status==='avisada'?'b-ok':'b-pend'),e.status==='avisada'?`Avisada · vaga ${e.hora_vaga||''}`:'Aguardando'));bl.append(r)});
+    g2.append(bw,bl);v.append(g2);
+  }
   const b3=box('Ações sugeridas','Com base nos números de '+MESF[d.getMonth()]);
   const ul=el('ul','acts');
   acoes(m).forEach(([t,auto],i)=>{const li=el('li');const dv=el('div');dv.append(el('span',null,t),document.createElement('br'),el('span','chip',auto));li.append(el('span','num',i+1),dv);ul.append(li)});
@@ -287,12 +322,12 @@ function agruparDia(lista,card,mostrarBtn,newIds){
     if(r.data!==cur){cur=r.data;card.append(el('div','dayh',dia(cur)))}
     const it=el('div','item'+(newIds&&newIds.has(r.id)?' new':''));
     const mid=el('div');mid.append(el('div','nm',r.nome),el('div','mt',`${r.interesse||'Sessão'} · ${r.telefone||''} · origem: ${r.origem||'direto'}`));
-    const act=el('div','act');act.style.display='flex';act.style.gap='8px';act.style.alignItems='center';act.append(badge(r));if(mostrarBtn)act.append(payBtn(r));
+    const act=el('div','act');act.style.display='flex';act.style.gap='8px';act.style.alignItems='center';act.append(badge(r));if(mostrarBtn&&r.status!=='cancelada'){act.append(payBtn(r));act.append(cancelBtn(r))}
     it.append(el('div','hr',r.hora),mid,act);card.append(it);
   });
 }
 function renderAgenda(v,newIds){
-  const live=ao_vivo().map(r=>Object.assign({status:'realizada'},r));
+  const live=(dados.agendamentos||[]).map(normLive);
   v.append(el('div','sub','Próximas sessões'));
   const c1=el('div','card');
   if(!live.length){const e=el('div','empty');e.append(el('b',null,'Nenhum agendamento novo'),el('span',null,'Quando alguém agendar pela página, aparece aqui na hora.'));c1.append(e)}
@@ -305,7 +340,7 @@ function renderAgenda(v,newIds){
   v.append(c2);
 }
 function renderTabela(v){
-  const live=ao_vivo().map(r=>Object.assign({status:'realizada',live:true},r));
+  const live=ao_vivo().map(normLive);
   const todos=live.slice().sort((x,y)=>(y.criado_em||'').localeCompare(x.criado_em||'')).concat(PASSADAS.slice().reverse());
   const card=el('div','card'),t=el('table'),hd=el('tr');
   (tab==='clientes'?['Cliente','WhatsApp','Interesse','Origem','Sessão']:['Cliente','Sessão','Valor','Status','']).forEach(h=>hd.append(el('th',null,h)));
@@ -319,6 +354,12 @@ function renderTabela(v){
 }
 function renderStrip(newIds){
   const s=$('strip');s.replaceChildren();
+  if(evento){
+    s.append(el('span','lbl','Última atualização'));
+    const t=el('span');t.append(el('b',null,'Sessão cancelada: '),document.createTextNode(evento.t+'. '+evento.s));s.append(t);
+    if(flashNext){s.classList.remove('flash');void s.offsetWidth;s.classList.add('flash');flashNext=false}
+    return;
+  }
   const a=ao_vivo();
   if(!a.length){s.append(el('span','lbl','Última atualização'),el('span',null,'Aguardando novo agendamento pela página…'));return}
   const r=a.slice().sort((x,y)=>(y.criado_em||'').localeCompare(x.criado_em||''))[0];
@@ -338,11 +379,14 @@ function render(newIds){
 async function load(force){
   if(busy&&!force)return;
   try{
-    const j=await api({acao:'agenda'});
+    const [j,h]=await Promise.all([api({acao:'agenda'}),api({acao:'horarios'}).catch(()=>null)]);
     if(!j.ok)throw 0;
+    semana=(h&&h.dias)||semana;
     const ids=new Set(j.agendamentos.map(r=>r.id));
     const nu=new Set();if(vistos)ids.forEach(i=>{if(!vistos.has(i))nu.add(i)});
-    const mudou=!vistos||nu.size>0||JSON.stringify(j.agendamentos)!==JSON.stringify(dados.agendamentos);
+    const sig=JSON.stringify([j.agendamentos,j.espera,semana]);
+    const mudou=!vistos||nu.size>0||sig!==sigAnt;
+    sigAnt=sig;if(nu.size>0)evento=null;
     vistos=ids;dados=j;
     if(mudou||force)render(nu);
     $('upd').textContent='ao vivo · '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
@@ -356,7 +400,7 @@ $('rbtn').onclick=()=>{$('rbox').style.display='flex';$('rbtn').style.display='n
 $('rok').onclick=async()=>{
   try{const j=await api({acao:'reiniciar',chave:$('rkey').value});
     $('msg').textContent=j.ok?'Demonstração reiniciada.':'Senha incorreta.';
-    if(j.ok){vistos=null;await load(true)}
+    if(j.ok){vistos=null;evento=null;await load(true)}
   }catch(e){$('msg').textContent='Falha ao reiniciar.'}
   $('rkey').value='';$('rbox').style.display='none';$('rbtn').style.display='';
 };

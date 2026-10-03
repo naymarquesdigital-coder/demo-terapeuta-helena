@@ -195,6 +195,11 @@ html{scroll-behavior:smooth}
             <input id="wp" type="tel" autocomplete="tel" inputmode="tel" placeholder="(11) 90000-0000" style="padding:15px 16px;border-radius:6px;border:1px solid #D9BFB0;background:#fff;font:inherit;font-size:16px;color:#3A2620">
           </div>
         </div>
+        <div id="lotado" style="display:none;margin-top:24px;padding:18px 20px;border-radius:6px;background:#EFE5DD;color:#3A2620;text-align:center">
+          <div class="serif" style="font-size:26px;font-weight:500;line-height:1.15">Este dia está com a agenda completa.</div>
+          <p style="margin:8px 0 0;font-size:14.5px;line-height:1.6;color:#5B4239">Entre na lista de espera. Se um horário for liberado, você é avisada primeiro.</p>
+        </div>
+        <button id="espera" class="btn" style="display:none;margin-top:16px;width:100%;border:0;cursor:pointer;background:#3A2620;color:#F6EEE7;padding:19px;border-radius:4px;font:inherit;font-size:16px;font-weight:500;letter-spacing:.03em">Entrar na lista de espera</button>
         <button id="go" class="btn" disabled style="margin-top:24px;width:100%;border:0;cursor:pointer;background:#A45E49;color:#fff;padding:19px;border-radius:4px;font:inherit;font-size:16px;font-weight:500;letter-spacing:.03em">Confirmar meu horário</button>
         <div id="resumo" style="margin-top:14px;text-align:center;font-size:13px;color:#6B4D42">Escolha um horário para continuar</div>
         <div id="err" role="alert" style="margin-top:8px;text-align:center;font-size:14px;color:#9A3B2B;min-height:1em"></div>
@@ -203,9 +208,9 @@ html{scroll-behavior:smooth}
         <div class="popin" style="width:88px;height:88px;border-radius:50%;background:#A45E49;margin:0 auto;display:flex;align-items:center;justify-content:center">
           <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path class="check" d="M5 12.5l4.5 4.5L19 7.5"/></svg>
         </div>
-        <div class="serif" style="margin-top:26px;font-size:50px;font-weight:500;line-height:1">Horário reservado.</div>
+        <div id="doneH" class="serif" style="margin-top:26px;font-size:50px;font-weight:500;line-height:1">Horário reservado.</div>
         <p id="doneTxt" style="margin:16px 0 0;font-size:18px;color:#4A322B"></p>
-        <p style="margin:6px 0 0;font-size:15px;color:#6B4D42">O link chega no seu WhatsApp. Respire, e até lá.</p>
+        <p id="doneSub" style="margin:6px 0 0;font-size:15px;color:#6B4D42">O link chega no seu WhatsApp. Respire, e até lá.</p>
         <button id="again" class="btn" style="margin-top:28px;cursor:pointer;background:transparent;border:1px solid #3A2620;color:#3A2620;padding:15px 28px;border-radius:4px;font:inherit;font-size:15px;font-weight:500">Fazer outro agendamento</button>
       </div>
     </div>
@@ -285,9 +290,15 @@ function drawHours(){
     box.append(b);
   });
 }
+function lotadoHoje(){const d=dias.find(x=>x.data===selDia);return !!d&&d.horarios.every(h=>!h.livre)}
 function upd(){
-  $('resumo').textContent=(selDia&&selHora)?'Sessão em '+fmt(selDia)+' às '+selHora:'Escolha um horário para continuar';
+  const full=lotadoHoje();
+  $('lotado').style.display=full?'block':'none';
+  $('espera').style.display=full?'block':'none';
+  $('go').style.display=full?'none':'block';
+  $('resumo').textContent=full?'':(selDia&&selHora)?'Sessão em '+fmt(selDia)+' às '+selHora:'Escolha um horário para continuar';
   $('go').disabled=busy||!(selDia&&selHora);
+  $('espera').disabled=busy;
 }
 async function load(keep){
   try{
@@ -317,7 +328,25 @@ $('go').onclick=async()=>{
   }catch(e){$('err').textContent='Não foi possível concluir agora. Tente novamente.'}
   busy=false;$('go').textContent='Confirmar meu horário';upd();
 };
-$('again').onclick=()=>{$('done').style.display='none';$('nm').value='';$('wp').value='';selHora=null;$('loading').style.display='block';$('loading').textContent='Carregando os horários…';load()};
+$('espera').onclick=async()=>{
+  const nome=$('nm').value.trim(),tel=$('wp').value.trim();
+  $('err').textContent='';
+  if(nome.length<2){$('err').textContent='Conta seu nome para mim?';$('nm').focus();return}
+  if(tel.replace(/\D/g,'').length<10){$('err').textContent='Informe um WhatsApp válido, com DDD.';$('wp').focus();return}
+  busy=true;$('espera').disabled=true;$('espera').textContent='Entrando na fila…';
+  try{
+    const j=await api({acao:'espera',data:selDia,nome:nome,telefone:tel});
+    if(!j.ok)throw new Error('x');
+    $('flow').style.display='none';
+    $('doneH').textContent='Você está na lista.';
+    $('doneTxt').textContent=nome.split(' ')[0]+', se um horário de '+fmt(selDia).toLowerCase()+' for liberado, avisamos você primeiro.';
+    $('doneSub').textContent='O aviso chega no seu WhatsApp.';
+    $('done').style.display='block';
+    $('done').scrollIntoView({block:'center',behavior:'smooth'});
+  }catch(e){$('err').textContent='Não foi possível concluir agora. Tente novamente.'}
+  busy=false;$('espera').textContent='Entrar na lista de espera';upd();
+};
+$('again').onclick=()=>{$('doneH').textContent='Horário reservado.';$('doneSub').textContent='O link chega no seu WhatsApp. Respire, e até lá.';$('done').style.display='none';$('nm').value='';$('wp').value='';selHora=null;$('loading').style.display='block';$('loading').textContent='Carregando os horários…';load()};
 load();
 </script>
 </body>

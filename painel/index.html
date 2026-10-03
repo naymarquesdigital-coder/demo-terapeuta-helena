@@ -48,6 +48,7 @@ body{margin:0;font-family:'DM Sans',system-ui,sans-serif;background:var(--bg);co
 .rw{display:grid;grid-template-columns:96px 1fr 112px;gap:12px;align-items:center;font-size:13.5px;padding:7px 0}
 .trk{height:10px;background:var(--soft);border-radius:999px;overflow:hidden}.trk div{height:100%;background:var(--brand);border-radius:999px}
 .rw strong{text-align:right;font-weight:600}
+.ritmo{display:flex;gap:6px 10px;flex-wrap:wrap;align-items:baseline;border-radius:6px;padding:12px 18px;margin-bottom:18px;font-size:14px;background:var(--card);border:1px solid var(--line);border-left:3px solid var(--grey)}.ritmo.acima{border-left-color:var(--okc)}.ritmo.abaixo{border-left-color:var(--lostc)}.ritmo span{color:var(--muted)}
 .big{display:flex;align-items:baseline;gap:10px;margin:2px 0 10px}.bigp{font-size:44px;font-weight:500;line-height:1}.big span{font-size:13px;color:var(--muted)}.big .bigp{font-size:44px;color:var(--ink)}
 .dayh{padding:12px 20px;background:var(--soft);font-weight:600;font-size:21px}
 .item{display:grid;grid-template-columns:76px 1fr auto;gap:14px;align-items:center;padding:14px 20px;border-top:1px solid var(--line)}
@@ -133,6 +134,20 @@ function gerarPassadas(){ // sessões fictícias do mês atual, do dia 1 até on
 const PASSADAS=gerarPassadas();
 function origemNorm(o){o=(o||'').toLowerCase();if(/insta/.test(o))return 'Instagram';if(/an[uú]nc|ads|trafego|tráfego|meta|google/.test(o))return 'Anúncio';if(/indic/.test(o))return 'Indicação';return 'Direto'}
 
+function diasUteis(y,m,ate){let n=0;const fim=new Date(y,m+1,0).getDate();for(let d=1;d<=Math.min(ate||fim,fim);d++){const w=new Date(y,m,d).getDay();if(w&&w<6)n++}return n}
+function ritmo(m){ // compara o mês em andamento com o mesmo período do mês anterior
+  const y=hoje.getFullYear(),mo=hoje.getMonth();
+  const dec=Math.max(1,diasUteis(y,mo,hoje.getDate()-1));
+  const totAtual=diasUteis(y,mo);
+  const pm=new Date(y,mo-1,1),totPrev=diasUteis(pm.getFullYear(),pm.getMonth());
+  const prev=HIST[1],f=dec/totPrev;
+  const prevRe=prev.re*f,prevRec=prev.pg*VAL*f;
+  const proj=Math.round(m.re/dec*totAtual);
+  const razao=prevRe?m.re/prevRe:1;
+  const nivel=razao>=1.05?'acima':razao>=0.9?'igual':'abaixo';
+  return {dec,prevRe,prevRec,proj,razao,nivel,pmNome:MESF[pm.getMonth()],prev};
+}
+
 // ---------- Estado ----------
 let tab='resumo',sel=0,dados={agendamentos:[],resumo:{}},vistos=null,busy=false,ultimo=null;
 const mesRef=k=>new Date(hoje.getFullYear(),hoje.getMonth()-k,1);
@@ -174,7 +189,7 @@ function delta(cur,prev,inverse,suf){
   if(prev==null||!prev)return null;
   const d=Math.round((cur-prev)/prev*100);if(d===0)return null;
   const good=inverse?d<0:d>0;
-  return el('span','dl '+(good?'up':'dn'),`${d>0?'▲':'▼'} ${Math.abs(d)}% vs mês anterior`);
+  return el('span','dl '+(good?'up':'dn'),`${d>0?'▲':'▼'} ${Math.abs(d)}% ${suf?suf:'vs mês anterior'}`);
 }
 function legenda(items,total){
   const seg=el('div','seg');const lg=el('div','lg');
@@ -189,13 +204,14 @@ function box(titulo,sub){const c=el('div','card box');c.append(el('h3',null,titu
 // ---------- Ações sugeridas ----------
 function acoes(m){
   const a=[];
+  if(m.cur){const r=ritmo(m);if(r.nivel==='abaixo')a.push([`O mês está abaixo do ritmo de ${r.pmNome}. Abra mais horários e avise os clientes que não voltaram.`,'Automação: reativação'])}
   const taxa=pct(m.ca+m.fa,m.ag);
   if(m.pend>0)a.push([`${m.pend} pagamento${m.pend>1?'s':''} pendente${m.pend>1?'s':''} (${brl(m.aReceber)}). Envie um lembrete de cobrança gentil.`,'Automação: lembrete de pagamento']);
   if(taxa>=10)a.push([`Faltas e cancelamentos estão em ${taxa}% das sessões. Confirme cada sessão no dia anterior.`,'Automação: confirmação por WhatsApp']);
   const idx=m.ocup.indexOf(Math.min(...m.ocup));
   if(m.ocup[idx]<65)a.push([`${DSEM[idx]} é o dia mais vazio (${m.ocup[idx]}% de ocupação). Divulgue esses horários ou abra uma condição especial.`,'Automação: aviso de vagas']);
-  const cand=m.org.filter(o=>o[0]!=='Direto'&&o[1]>0).sort((x,y)=>y[2]/y[1]-x[2]/x[1])[0];
-  if(cand)a.push([`${cand[0]} é a origem que mais converte (${pct(cand[2],cand[1])}% dos contatos agendam). Vale reforçar esse canal.`,'Dado para o tráfego pago']);
+  const tot=m.org.reduce((x,o)=>x+o[2],0),top=m.org.slice().sort((x,y)=>y[2]-x[2])[0];
+  if(top&&tot>=3)a.push([`${top[0]} trouxe ${pct(top[2],tot)}% dos clientes novos. Vale manter esse canal ativo.`,'Origem dos clientes']);
   if(m.novos&&pct(m.ret,m.novos)<75)a.push([`Só ${pct(m.ret,m.novos)}% dos clientes novos voltaram para a segunda sessão. Faça um acompanhamento após a primeira.`,'Automação: pós-sessão']);
   if(m.sem>=3)a.push([`${m.sem} clientes estão sem retorno há 30 dias. Envie uma mensagem de reativação.`,'Automação: reativação']);
   return a.slice(0,4);
@@ -205,63 +221,65 @@ function acoes(m){
 function renderResumo(v){
   const m=mdata(sel);
   const prev=(!m.cur&&sel+1<=4)?mdata(sel+1):null;
+  const rtm=m.cur?ritmo(m):null;
   const d=mesRef(sel);
-  const bar=el('div','bar');bar.append(el('h2',null,`Balanço de ${MESF[d.getMonth()]}`));
+  const bar=el('div','bar');
   const s=el('select','sel');s.setAttribute('aria-label','Selecionar mês');
   for(let k=0;k<=4;k++){const o=el('option',null,MESF[mesRef(k).getMonth()]+' '+mesRef(k).getFullYear()+(k===0?' · em andamento':''));o.value=k;if(k===sel)o.selected=true;s.append(o)}
   s.onchange=()=>{sel=+s.value;render(new Set())};
   bar.append(s,el('span','tag',m.cur?'Atualiza a cada novo agendamento':'Mês fechado'));
   v.append(bar);
+  const rt=m.cur?ritmo(m):null;
+  if(rt){
+    const dif=Math.round((rt.razao-1)*100);
+    const txt=rt.nivel==='acima'?`Este mês está caminhando acima de ${rt.pmNome} (+${dif}% no mesmo período).`:rt.nivel==='igual'?`Este mês está no mesmo ritmo de ${rt.pmNome}.`:`Este mês está abaixo do ritmo de ${rt.pmNome} (${dif}% no mesmo período).`;
+    const st=el('div','ritmo '+rt.nivel);st.append(el('b',null,txt),el('span',null,` No ritmo atual, fecha com cerca de ${rt.proj} sessões (${rt.pmNome} fechou com ${rt.prev.re}).`));v.append(st);
+  }
 
   const k=el('div','kpis');
   const cards=[
-    ['Sessões realizadas',m.re,`de ${m.ag} agendadas`,prev?delta(m.re,prev.re):null],
+    ['Sessões realizadas',m.re,`de ${m.ag} agendadas`,prev?delta(m.re,prev.re):rtm?delta(m.re,rtm.prevRe,false,'no mesmo período'):null],
     ['Recebido',brl(m.recebido),`${pct(m.recebido,m.previsto)}% do previsto`,prev?delta(m.recebido,prev.recebido):null],
     ['A receber',brl(m.aReceber),`${m.pend} ${m.pend===1?'sessão pendente':'sessões pendentes'}`,prev?delta(m.aReceber,prev.aReceber,true):null],
-    ['Não aconteceram',pct(m.ca+m.fa,m.ag)+'%',`${brl(m.perdido)} que deixaram de entrar`,prev?delta(m.ca+m.fa,prev.ca+prev.fa,true):null]
+    ['Faltas e cancelamentos',pct(m.ca+m.fa,m.ag)+'%',`${brl(m.perdido)} que deixaram de entrar`,prev?delta(m.ca+m.fa,prev.ca+prev.fa,true):null]
   ];
   cards.forEach(([t,val,sub,dl])=>{const c=el('div','k');const i=el('i',null,sub);if(dl){i.append(document.createElement('br'),dl)}c.append(el('span',null,t),el('b',null,val),i);k.append(c)});
   v.append(k);
 
   const g=el('div','grid2');
-  const b1=box('Para onde foi o dinheiro','Do total previsto no mês, em reais e em %');
+  const b1=box('Financeiro',`Previsto no mês: ${brl(m.previsto)}`);
   legenda([['Recebido',m.recebido,'var(--okc)',brl(m.recebido)],['A receber',m.aReceber,'var(--pendc)',brl(m.aReceber)],['Deixou de entrar',m.perdido,'var(--lostc)',brl(m.perdido)]],m.previsto).forEach(x=>b1.append(x));
-  const b2=box('Como foram as sessões','Do total agendado no mês');
-  legenda([['Realizadas',m.re,'var(--okc)',m.re+''],['Cancelamentos',m.ca,'var(--pendc)',m.ca+''],['Faltas',m.fa,'var(--lostc)',m.fa+'']].concat(m.fut?[['Agendadas (ainda vão acontecer)',m.fut,'var(--grey)',m.fut+'']]:[]),m.ag).forEach(x=>b2.append(x));
+  const b2=box('Sessões',`${m.ag} agendadas no mês`);
+  legenda([['Realizadas',m.re,'var(--okc)',m.re+''],['Canceladas',m.ca,'var(--pendc)',m.ca+''],['Faltas',m.fa,'var(--lostc)',m.fa+'']].concat(m.fut?[['A realizar',m.fut,'var(--grey)',m.fut+'']]:[]),m.ag).forEach(x=>b2.append(x));
   g.append(b1,b2);v.append(g);
 
-  const b3=box('Ações sugeridas','Geradas a partir dos números de '+MESF[d.getMonth()]);
+  const b3=box('Ações sugeridas','Com base nos números de '+MESF[d.getMonth()]);
   const ul=el('ul','acts');
   acoes(m).forEach(([t,auto],i)=>{const li=el('li');const dv=el('div');dv.append(el('span',null,t),document.createElement('br'),el('span','chip',auto));li.append(el('span','num',i+1),dv);ul.append(li)});
   if(!ul.children.length)ul.append(el('li',null,'Tudo em ordem neste mês.'));
   b3.append(ul);v.append(b3);
 }
 function renderAnalises(v){
-  const m=mdata(sel),d=mesRef(sel);
-  const bar=el('div','bar');bar.append(el('h2',null,`Análises de ${MESF[d.getMonth()]}`));
+  const m=mdata(sel);
+  const bar=el('div','bar');
   const s=el('select','sel');s.setAttribute('aria-label','Selecionar mês');
   for(let k=0;k<=4;k++){const o=el('option',null,MESF[mesRef(k).getMonth()]+' '+mesRef(k).getFullYear()+(k===0?' · em andamento':''));o.value=k;if(k===sel)o.selected=true;s.append(o)}
   s.onchange=()=>{sel=+s.value;render(new Set())};
   bar.append(s,el('span','tag','Valores de exemplo'));v.append(bar);
 
   const g=el('div','grid2');
-  const bo=box('De onde vêm os clientes','Contatos recebidos e quantos agendaram');
-  m.org.forEach(o=>{const r=el('div','rw');const t=el('div','trk'),f=el('div');f.style.width=pct(o[2],o[1])+'%';t.append(f);r.append(el('span',null,o[0]),t,el('strong',null,`${o[2]}/${o[1]} · ${pct(o[2],o[1])}%`));bo.append(r)});
   const bc=box('Clientes','Novos, recorrentes e quem voltou');
   legenda([['Novos',m.novos,'var(--brand)',m.novos+''],['Recorrentes',m.rec,'var(--okc)',m.rec+'']],m.novos+m.rec).forEach(x=>bc.append(x));
   const bg=el('div','big');bg.append(el('span','bigp',pct(m.ret,m.novos)+'%'),el('span',null,'dos novos voltaram para a 2ª sessão'));bc.append(bg);
-  bc.append(el('p','s',`${m.sem} clientes sem retorno há 30 dias`));
-  g.append(bo,bc);v.append(g);
+  const sm=el('div','big');sm.append(el('span','bigp',m.sem+''),el('span',null,'clientes sem retorno há mais de 30 dias'));bc.append(sm);
+  const bo=box('De onde vieram os novos clientes','Origem registrada no agendamento');
+  const tot=m.org.reduce((x,o)=>x+o[2],0);
+  m.org.slice().sort((x,y)=>y[2]-x[2]).forEach(o=>{const r=el('div','rw');const t=el('div','trk'),f=el('div');f.style.width=pct(o[2],tot)+'%';t.append(f);r.append(el('span',null,o[0]),t,el('strong',null,`${o[2]} · ${pct(o[2],tot)}%`));bo.append(r)});
+  g.append(bc,bo);v.append(g);
 
-  const g2=el('div','grid2');
   const bq=box('Ocupação por dia da semana','Horários preenchidos sobre os disponíveis');
   m.ocup.forEach((x,i)=>{const r=el('div','rw');const t=el('div','trk'),f=el('div');f.style.width=x+'%';t.append(f);r.append(el('span',null,DSEM[i]),t,el('strong',null,x+'%'));bq.append(r)});
-  const ba=box('Anúncios','Investimento e custo por novo cliente');
-  const ad=m.org.find(o=>o[0]==='Anúncio');
-  const custo=ad&&ad[2]?m.inv/ad[2]:0;
-  const bg2=el('div','big');bg2.append(el('span','bigp',brl(custo)),el('span',null,'por novo cliente vindo de anúncio'));ba.append(bg2);
-  ba.append(el('p','s',`Investimento no mês: ${brl(m.inv)} · ${ad?ad[2]:0} novos clientes pelo anúncio. Cada cliente costuma fazer várias sessões de ${brl(VAL)}.`));
-  g2.append(bq,ba);v.append(g2);
+  v.append(bq);
 }
 function agruparDia(lista,card,mostrarBtn,newIds){
   let cur='';

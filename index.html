@@ -210,7 +210,7 @@ html{scroll-behavior:smooth}
         </div>
         <div id="doneH" class="serif" style="margin-top:26px;font-size:50px;font-weight:500;line-height:1">Horário reservado.</div>
         <p id="doneTxt" style="margin:16px 0 0;font-size:18px;color:#4A322B"></p>
-        <p id="doneSub" style="margin:6px 0 0;font-size:15px;color:#6B4D42">O link chega no seu WhatsApp. Respire, e até lá.</p>
+        <p id="doneSub" style="margin:6px 0 0;font-size:15px;color:#6B4D42">No WhatsApp você recebe o link da sessão e as orientações de pagamento. Respire, e até lá.</p>
         <button id="again" class="btn" style="margin-top:28px;cursor:pointer;background:transparent;border:1px solid #3A2620;color:#3A2620;padding:15px 28px;border-radius:4px;font:inherit;font-size:15px;font-weight:500">Fazer outro agendamento</button>
       </div>
     </div>
@@ -230,7 +230,7 @@ html{scroll-behavior:smooth}
     </details>
     <details class="rv" style="border-bottom:1px solid rgba(58,38,32,.25)">
       <summary style="display:flex;justify-content:space-between;align-items:center;gap:20px;padding:26px 0"><span class="serif" style="font-size:clamp(24px,2.4vw,32px);font-weight:500;line-height:1.15">Como funciona o pagamento?</span><span class="plus serif" style="font-size:36px;color:#A45E49;line-height:1">+</span></summary>
-      <p style="margin:0 0 28px;font-size:16px;line-height:1.75;color:#5B4239;max-width:520px">O valor é combinado depois da confirmação do horário. Não há cobrança no momento do agendamento.</p>
+      <p style="margin:0 0 28px;font-size:16px;line-height:1.75;color:#5B4239;max-width:520px">O valor é combinado depois da confirmação do horário e enviado por link, pelo WhatsApp. Não há cobrança no momento do agendamento.</p>
     </details>
     <details class="rv" style="border-bottom:1px solid rgba(58,38,32,.25)">
       <summary style="display:flex;justify-content:space-between;align-items:center;gap:20px;padding:26px 0"><span class="serif" style="font-size:clamp(24px,2.4vw,32px);font-weight:500;line-height:1.15">E se eu precisar remarcar?</span><span class="plus serif" style="font-size:36px;color:#A45E49;line-height:1">+</span></summary>
@@ -346,7 +346,7 @@ $('espera').onclick=async()=>{
   }catch(e){$('err').textContent='Não foi possível concluir agora. Tente novamente.'}
   busy=false;$('espera').textContent='Entrar na lista de espera';upd();
 };
-$('again').onclick=()=>{$('doneH').textContent='Horário reservado.';$('doneSub').textContent='O link chega no seu WhatsApp. Respire, e até lá.';$('done').style.display='none';$('nm').value='';$('wp').value='';selHora=null;$('loading').style.display='block';$('loading').textContent='Carregando os horários…';load()};
+$('again').onclick=()=>{$('doneH').textContent='Horário reservado.';$('doneSub').textContent='No WhatsApp você recebe o link da sessão e as orientações de pagamento. Respire, e até lá.';$('done').style.display='none';$('nm').value='';$('wp').value='';selHora=null;$('loading').style.display='block';$('loading').textContent='Carregando os horários…';load()};
 load();
 </script>
 </body>

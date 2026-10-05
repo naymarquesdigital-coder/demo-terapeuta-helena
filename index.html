@@ -82,7 +82,7 @@ html{scroll-behavior:smooth}
       <a class="btn" href="#agenda" style="background:#A45E49;color:#fff;padding:19px 34px;border-radius:4px;font-size:16px;font-weight:500;letter-spacing:.02em;display:inline-flex;align-items:center;gap:12px">Marcar minha primeira conversa
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h16M14 6l6 6-6 6"/></svg>
       </a>
-      <a class="ul" href="#agenda" style="font-size:16px;font-weight:500">Prefiro falar antes com a assistente</a>
+      <a id="falarAssistente" class="ul" href="#agenda" style="font-size:16px;font-weight:500">Prefiro falar antes com a assistente</a>
     </div>
   </div>
   <div class="rev zoom" style="position:relative">
@@ -348,6 +348,13 @@ $('espera').onclick=async()=>{
   busy=false;$('espera').textContent='Entrar na lista de espera';upd();
 };
 $('again').onclick=()=>{$('doneH').textContent='Horário reservado.';$('doneSub').textContent='No WhatsApp você recebe o link da sessão e as orientações de pagamento. Respire, e até lá.';$('done').style.display='none';$('nm').value='';$('wp').value='';selHora=null;$('loading').style.display='block';$('loading').textContent='Carregando os horários…';load()};
+$('falarAssistente').onclick=e=>{
+  try{
+    const c=window.GPT_CHAT_IFRAME_ELEMENTS.containerIframe;
+    e.preventDefault();
+    if(!c.style.width||c.style.width==='0px')window.GPT_CHAT_IFRAME_FUNCTIONS.toogleChat();
+  }catch(x){/* widget ainda não carregou: segue para a agenda */}
+};
 load();
 </script>
 </body>

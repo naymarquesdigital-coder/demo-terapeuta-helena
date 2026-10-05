@@ -159,7 +159,10 @@ const chaveMes=d=>d.getFullYear()+'-'+pad(d.getMonth()+1);
 function ao_vivo(){return (dados.agendamentos||[]).filter(r=>r.status!=='cancelado')}
 function cancelados(){return (dados.agendamentos||[]).filter(r=>r.status==='cancelado')}
 function normLive(r){return Object.assign({},r,{status:r.status==='cancelado'?'cancelada':'realizada',live:true})}
-function filaEspera(){return dados.espera||[]}
+const ESP_FAKE=[['Marina Costa','(22) 9****-4471'],['Paulo Ribeiro','(22) 9****-2085'],['Camila Torres','(22) 9****-6930']];
+function diasLotados(){return (semana||[]).filter(d=>d.horarios.length&&d.horarios.every(h=>!h.livre))}
+function filaFake(){const out=[];diasLotados().forEach((d,i)=>{[0,1].forEach(k=>{const f=ESP_FAKE[(i*2+k)%ESP_FAKE.length];out.push({id:'ef'+i+k,nome:f[0],telefone:f[1],data:d.data,status:'aguardando',criado_em:'2000-01-0'+(k+1),fake:true})})});return out}
+function filaEspera(){return filaFake().concat(dados.espera||[])}
 function semInfo(){ // ocupação da semana a partir dos horários que a página oferece
   let oc=0,tot=0;const dias=(semana||[]).map(d=>{const t=d.horarios.length,o=d.horarios.filter(h=>!h.livre).length;oc+=o;tot+=t;const f=filaEspera().filter(e=>e.data===d.data&&e.status==='aguardando').length;return {d,t,o,f}});
   return {oc,tot,p:pct(oc,tot),dias}
@@ -198,9 +201,11 @@ async function togglePag(r){
 async function cancelar(r){
   busy=true;
   try{
+    const ff=filaFake().filter(e=>e.data===r.data)[0];
     const j=await api({acao:'cancelar',id:String(r.id)});
     const t=`${r.nome} · ${dia(r.data)}, ${r.hora}`;
-    evento={t,s:(j.avisada&&j.avisada.nome)?`Horário liberado. Aviso enviado para ${j.avisada.nome}, primeira da fila de espera.`:'Horário liberado. Ninguém estava na fila de espera.'};
+    const av=ff?ff.nome:(j.avisada&&j.avisada.nome);
+    evento={t,s:av?`Horário liberado. Aviso enviado para ${av}, primeira da fila de espera.`:'Horário liberado. Ninguém estava na fila de espera.'};
     flashNext=true;await load(true);
   }catch(e){$('msg').textContent='Falha ao cancelar.'}
   busy=false;
@@ -235,7 +240,6 @@ function acoes(m){
   const idx=m.ocup.indexOf(Math.min(...m.ocup));
   if(m.ocup[idx]<65)a.push([`${DSEM[idx]} é o dia mais vazio (${m.ocup[idx]}% de ocupação). Divulgue esses horários ou abra uma condição especial.`,'Automação: aviso de vagas']);
   const tot=m.org.reduce((x,o)=>x+o[2],0),top=m.org.slice().sort((x,y)=>y[2]-x[2])[0];
-  if(top&&tot>=3)a.push([`${top[0]} trouxe ${pct(top[2],tot)}% dos clientes novos. Vale manter esse canal ativo.`,'Origem dos clientes']);
   if(m.novos&&pct(m.ret,m.novos)<75)a.push([`Só ${pct(m.ret,m.novos)}% dos clientes novos voltaram para a segunda sessão. Faça um acompanhamento após a primeira.`,'Automação: pós-sessão']);
   if(m.sem>=3)a.push([`${m.sem} clientes estão sem retorno há 30 dias. Envie uma mensagem de reativação.`,'Automação: reativação']);
   return a.slice(0,4);

@@ -16,6 +16,7 @@ img{display:block}
 .serif{font-family:'Cormorant Garamond',Georgia,serif}
 .ul{background:linear-gradient(currentColor,currentColor) 0 100%/100% 1px no-repeat;padding-bottom:4px;transition:background-size .35s ease}
 .ul:hover{background-size:0 1px;background-position:100% 100%}
+@media(max-width:600px){.lia-full{width:100vw!important;height:100vh!important;height:100dvh!important;max-width:none!important;max-height:none!important;bottom:0!important;right:0!important;left:0!important;top:0!important;border-radius:0!important}body{padding-bottom:84px}}
 .btn{transition:background .25s ease,transform .25s ease}
 .btn:hover{transform:translateY(-2px)}
 .zoom{overflow:hidden}
@@ -355,6 +356,7 @@ $('falarAssistente').onclick=e=>{
     if(!c.style.width||c.style.width==='0px')window.GPT_CHAT_IFRAME_FUNCTIONS.toogleChat();
   }catch(x){/* widget ainda não carregou: segue para a agenda */}
 };
+(function(){var t=0;function go(){try{var E=window.GPT_CHAT_IFRAME_ELEMENTS;if(!E||!E.containerIframe){if(t++<40)setTimeout(go,500);return}var c=E.containerIframe,b=E.button;function ap(){var m=innerWidth<=600;c.classList.toggle('lia-full',m&&c.style.opacity==='1');if(b&&m){b.style.setProperty('bottom','16px','important');b.style.setProperty('right','16px','important')}}new MutationObserver(ap).observe(c,{attributes:true,attributeFilter:['style']});addEventListener('resize',ap);ap()}catch(x){}}go()})();
 load();
 </script>
 </body>

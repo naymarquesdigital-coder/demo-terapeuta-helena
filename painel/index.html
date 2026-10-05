@@ -290,7 +290,7 @@ function renderResumo(v){
   }
   const b3=box('Ações sugeridas','Com base nos números de '+MESF[d.getMonth()]);
   const ul=el('ul','acts');
-  acoes(m).forEach(([t,auto],i)=>{const li=el('li');const dv=el('div');dv.append(el('span',null,t),document.createElement('br'),el('span','chip',auto));li.append(el('span','num',i+1),dv);ul.append(li)});
+  acoes(m).forEach(([t,auto],i)=>{const li=el('li');const dv=el('div');const au=/^Automação: /.test(auto);const nt=el('span','tag');if(au){const b=el('b',null,'Pode ser automático');b.style.color='var(--accent,#A45E49)';b.style.fontWeight='500';nt.append(b,document.createTextNode(' · '+auto.replace('Automação: ','')))}else{nt.textContent='Veja em '+auto}nt.style.display='block';nt.style.marginTop='6px';dv.append(el('span',null,t),nt);li.append(el('span','num',i+1),dv);ul.append(li)});
   if(!ul.children.length)ul.append(el('li',null,'Tudo em ordem neste mês.'));
   b3.append(ul);v.append(b3);
 }

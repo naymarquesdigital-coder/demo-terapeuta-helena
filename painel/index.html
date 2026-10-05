@@ -121,9 +121,11 @@ const hoje=new Date();
 
 function gerarPassadas(){ // sessões fictícias do mês atual, do dia 1 até ontem (dias úteis)
   const out=[];let i=0;
+  let nd=0;for(let d=1;d<hoje.getDate();d++){const w=new Date(hoje.getFullYear(),hoje.getMonth(),d).getDay();if(w!==0&&w!==6)nd++}
+  const por=Math.max(2,Math.min(6,Math.ceil(18/Math.max(nd,1)))); // no começo do mês, mais sessões por dia para a demo ter volume
   for(let d=1;d<hoje.getDate();d++){
     const dt=new Date(hoje.getFullYear(),hoje.getMonth(),d);const w=dt.getDay();if(w===0||w===6)continue;
-    for(let k=0;k<2;k++){
+    for(let k=0;k<por;k++){
       const st=(i%9===5)?'cancelada':(i%13===9)?'falta':'realizada';
       const recente=(hoje.getDate()-d)<=1;
       out.push({id:'f'+i,nome:NOMES[i%NOMES.length],telefone:`(22) 9****-${pad(10+i*7%90)}${pad(20+i*3%80)}`.slice(0,18),data:iso(dt),hora:HORAS[(i*3+k*2)%7],origem:ORIG[i%ORIG.length],interesse:'Sessão',status:st,pagamento:st==='realizada'?(recente&&i%2===0?'pendente':'pago'):null,fake:true});

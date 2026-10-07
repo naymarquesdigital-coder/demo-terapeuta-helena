@@ -168,7 +168,7 @@ function semInfo(){ // ocupação da semana a partir dos horários que a página
   return {oc,tot,p:pct(oc,tot),dias}
 }
 function mdata(k){
-  if(k>0){const h=HIST[k];return Object.assign({k,cur:false},h,{recebido:h.pg*VAL,aReceber:(h.re-h.pg)*VAL,perdido:(h.ca+h.fa)*VAL,previsto:h.ag*VAL,pend:h.re-h.pg})}
+  if(k>0){const h=HIST[k];return Object.assign({k,cur:false},h,{recebido:h.re*VAL,aReceber:0,perdido:(h.ca+h.fa)*VAL,previsto:h.ag*VAL,pend:0})}
   const chave=chaveMes(hoje);
   const live=ao_vivo().filter(r=>(r.data||'').startsWith(chave));
   const liveC=cancelados().filter(r=>(r.data||'').startsWith(chave)).length;
@@ -268,7 +268,7 @@ function renderResumo(v){
   const cards=[
     ['Sessões realizadas',m.re,`de ${m.ag} agendadas`,prev?delta(m.re,prev.re):rtm?delta(m.re,rtm.prevRe,false,'no mesmo período'):null],
     ['Recebido',brl(m.recebido),`${pct(m.recebido,m.previsto)}% do previsto`,prev?delta(m.recebido,prev.recebido):null],
-    ['A receber',brl(m.aReceber),`${m.pend} ${m.pend===1?'sessão pendente':'sessões pendentes'}`,prev?delta(m.aReceber,prev.aReceber,true):null],
+    m.cur?['A receber',brl(m.aReceber),`${m.pend} ${m.pend===1?'sessão pendente':'sessões pendentes'}`,null]:['Deixou de entrar',brl(m.perdido),`${m.ca} canceladas · ${m.fa} faltas`,prev?delta(m.ca+m.fa,prev.ca+prev.fa,true):null],
     ['Faltas e cancelamentos',pct(m.ca+m.fa,m.ag)+'%',`${brl(m.perdido)} que deixaram de entrar`,prev?delta(m.ca+m.fa,prev.ca+prev.fa,true):null]
   ];
   cards.forEach(([t,val,sub,dl])=>{const c=el('div','k');const i=el('i',null,sub);if(dl){i.append(document.createElement('br'),dl)}c.append(el('span',null,t),el('b',null,val),i);k.append(c)});
@@ -276,7 +276,7 @@ function renderResumo(v){
 
   const g=el('div','grid2');
   const b1=box('Financeiro',`Previsto no mês: ${brl(m.previsto)}`);
-  legenda([['Recebido',m.recebido,'var(--okc)',brl(m.recebido)],['A receber',m.aReceber,'var(--pendc)',brl(m.aReceber)],['Deixou de entrar',m.perdido,'var(--lostc)',brl(m.perdido)]],m.previsto).forEach(x=>b1.append(x));
+  legenda([['Recebido',m.recebido,'var(--okc)',brl(m.recebido)],...(m.cur?[['A receber',m.aReceber,'var(--pendc)',brl(m.aReceber)]]:[]),['Deixou de entrar',m.perdido,'var(--lostc)',brl(m.perdido)]],m.previsto).forEach(x=>b1.append(x));
   const b2=box('Sessões',`${m.ag} agendadas no mês`);
   legenda([['Realizadas',m.re,'var(--okc)',m.re+''],['Canceladas',m.ca,'var(--pendc)',m.ca+''],['Faltas',m.fa,'var(--lostc)',m.fa+'']].concat(m.fut?[['A realizar',m.fut,'var(--grey)',m.fut+'']]:[]),m.ag).forEach(x=>b2.append(x));
   g.append(b1,b2);v.append(g);
